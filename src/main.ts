@@ -3,6 +3,7 @@ import { AppModule } from './app.module';
 import helmet from 'helmet';
 import { ValidationPipe } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+import { corsOrigin } from './config/cors-origin';
 
 async function bootstrap() {
 
@@ -26,20 +27,7 @@ async function bootstrap() {
   }));
 
   app.enableCors({
-    origin: (origin, callback) => {
-
-      if (!origin) {
-        callback(null, true);
-      }
-
-      const allowedOrigins = process.env.CORS_ORIGINS?.split(',') || ['*'];
-
-      if (allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
-        callback(null, true);
-      } else {
-        callback(new Error('Not allowed by CORS'));
-      }
-    },
+    origin: corsOrigin,
     methods: [
       'GET',
       'POST',
