@@ -1,13 +1,12 @@
 import { Controller, Get } from '@nestjs/common';
 import { AppService } from './app.service';
-import { timestamp } from 'rxjs';
 import { ProxyService } from './proxy/service/proxy.service';
 
 @Controller()
 export class AppController {
   constructor(
     private readonly appService: AppService,
-    private readonly proxyService: ProxyService
+    private readonly proxyService: ProxyService,
   ) {}
 
   @Get()
@@ -16,18 +15,16 @@ export class AppController {
   }
 
   @Get('health')
-    async getHealth(){
-
-      return{
-
-        status: 'ok',
-        timestamp: new Date().toISOString(),
-        services: {
-          users: await this.proxyService.getServiceHealth('users'),
-          products: await this.proxyService.getServiceHealth('products'),
-          checkout: await this.proxyService.getServiceHealth('checkout'),
-          payments: await this.proxyService.getServiceHealth('payments')
-        }
-      }
-    }
+  async getHealth() {
+    return {
+      status: 'ok',
+      timestamp: new Date().toISOString(),
+      services: {
+        users: await this.proxyService.getServiceHealth('users'),
+        products: await this.proxyService.getServiceHealth('products'),
+        checkout: await this.proxyService.getServiceHealth('checkout'),
+        payments: await this.proxyService.getServiceHealth('payments'),
+      },
+    };
+  }
 }

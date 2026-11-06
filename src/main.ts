@@ -6,35 +6,30 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { corsOrigin } from './config/cors-origin';
 
 async function bootstrap() {
-
   const app = await NestFactory.create(AppModule);
 
-  app.use(helmet({
-    contentSecurityPolicy: {
-      directives: {
-        defaultSrc: ["'self'"],
-        scriptSrc: ["'self'"],
-        styleSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: ["'self'", 'data:', 'https:'],
+  app.use(
+    helmet({
+      contentSecurityPolicy: {
+        directives: {
+          defaultSrc: ["'self'"],
+          scriptSrc: ["'self'"],
+          styleSrc: ["'self'", "'unsafe-inline'"],
+          imgSrc: ["'self'", 'data:', 'https:'],
+        },
       },
-    },
-    crossOriginEmbedderPolicy: false,
-    hsts: {
-      maxAge: 31536000,
-      includeSubDomains: true,
-      preload: true
-    }
-  }));
+      crossOriginEmbedderPolicy: false,
+      hsts: {
+        maxAge: 31536000,
+        includeSubDomains: true,
+        preload: true,
+      },
+    }),
+  );
 
   app.enableCors({
     origin: corsOrigin,
-    methods: [
-      'GET',
-      'POST',
-      'PUT',
-      'DELETE',
-      'PATCH'
-    ],
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
     allowedHeaders: [
       'Content-Type',
       'Authorization',
@@ -42,18 +37,18 @@ async function bootstrap() {
       'Accept',
       'Origin',
       'Access-Control-Request-Method',
-      'Access-Control-Request-Headers'
+      'Access-Control-Request-Headers',
     ],
     credentials: true,
-    maxAge: 86400
+    maxAge: 86400,
   });
 
   app.useGlobalPipes(
     new ValidationPipe({
       transform: true,
       whitelist: true,
-      forbidNonWhitelisted: true
-    })
+      forbidNonWhitelisted: true,
+    }),
   );
 
   const config = new DocumentBuilder()
@@ -67,6 +62,5 @@ async function bootstrap() {
   SwaggerModule.setup('api', app, document);
 
   await app.listen(process.env.PORT ?? 3005);
-
 }
-bootstrap();
+void bootstrap();

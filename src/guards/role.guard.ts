@@ -1,38 +1,41 @@
-import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
+import {
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+  Injectable,
+} from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import type { AuthenticatedRequest } from '../auth/types/auth.types';
 
 @Injectable()
 export class RoleGuard implements CanActivate {
-
   constructor(
     // reflector busca os metadados
-    private readonly reflector: Reflector
-  ) { }
+    private readonly reflector: Reflector,
+  ) {}
 
-  canActivate(
-    context: ExecutionContext,
-  ): boolean {
-
-    const requiredRoles = this.reflector.getAllAndOverride<string[]>('roles',
-      [
-        context.getHandler(),
-        context.getClass()
-      ]);
+  canActivate(context: ExecutionContext): boolean {
+    const requiredRoles = this.reflector.getAllAndOverride<string[]>('roles', [
+      context.getHandler(),
+      context.getClass(),
+    ]);
 
     if (!requiredRoles) {
       return true;
     }
 
-    const user = context.switchToHttp().getRequest().user;
+    const { user } = context.switchToHttp().getRequest<AuthenticatedRequest>();
 
     if (!user || !user.role) {
-       throw new ForbiddenException('User role not found');
+      throw new ForbiddenException('User role not found');
     }
 
     const hasRole = requiredRoles?.includes(user.role);
 
     if (!hasRole) {
-      throw new ForbiddenException('Insufficient permissions, Role required: ' + requiredRoles.join(', '));
+      throw new ForbiddenException(
+        'Insufficient permissions, Role required: ' + requiredRoles.join(', '),
+      );
     }
 
     return true;
