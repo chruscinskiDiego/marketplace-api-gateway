@@ -4,6 +4,7 @@ import type { AxiosRequestConfig, AxiosResponse, Method } from 'axios';
 import { firstValueFrom } from 'rxjs';
 import type { JwtUser } from '../../auth/types/auth.types';
 import { serviceConfig } from '../../config/gateway.config';
+import { CircuitBreakerService } from '../common/circuit-breaker/circuit-breaker.service';
 
 export type ServiceHealth =
   | { status: 'healthy'; data: unknown }
@@ -13,7 +14,10 @@ export type ServiceHealth =
 export class ProxyService {
   private readonly logger = new Logger(ProxyService.name);
 
-  constructor(private readonly httpService: HttpService) {}
+  constructor(
+    private readonly httpService: HttpService,
+    private readonly circuitBreakerService: CircuitBreakerService
+  ) {}
 
   async proxyRequest(
     serviceName: keyof typeof serviceConfig,
@@ -23,26 +27,45 @@ export class ProxyService {
     headers?: AxiosRequestConfig<unknown>['headers'],
     userInfo?: JwtUser,
   ): Promise<AxiosResponse<unknown, unknown>> {
+
     const service = serviceConfig[serviceName];
     const url = `${service.url}${path}`;
     this.logger.log(`Proxying ${method} request to ${serviceName}: ${url}`);
 
-    const enhancedHeaders = {
-      ...headers,
-      'x-user-id': userInfo?.userId,
-      'x-user-email': userInfo?.email,
-      'x-user-role': userInfo?.role,
-    };
+    return this.circuitBreakerService.executeWithCircuitBreaker( 
+      async () => {
+        const enhancedHeaders = {
+          ...headers,
+          'x-user-id': userInfo?.userId,
+          'x-user-email': userInfo?.email,
+          'x-user-role': userInfo?.role,
+        };
 
-    return firstValueFrom(
-      this.httpService.request<unknown>({
-        method: method.toLowerCase(),
-        url,
-        data,
-        headers: enhancedHeaders,
-        timeout: service.timeout,
-      }),
-    );
+        const response = await firstValueFrom(
+          this.httpService.request<unknown>({
+            method: method.toLowerCase(),
+            url,
+            data,
+            headers: enhancedHeaders,
+            timeout: service.timeout,
+          }),
+        );
+
+        return response;
+      },
+      () => {
+        this.logger.error(`Error proxying method ${method} request to ${serviceName}: ${url}`);
+
+        throw new Error(`Service ${serviceName} is currently unavailable. Please try again later.`);
+      },
+      `proxy-${serviceName}`,
+      {
+        failureThreshold: 3,
+        timeout: 30000,
+        resetTimeout: 30000,
+      }
+    )
+    
   }
 
   async getServiceHealth(
