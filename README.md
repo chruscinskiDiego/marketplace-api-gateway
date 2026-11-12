@@ -1,33 +1,33 @@
 # Marketplace API Gateway
 
-Projeto de API Gateway em NestJS para estudar autenticação, integração HTTP e mecanismos de resiliência na comunicação com serviços de um marketplace.
+NestJS API gateway project for exploring authentication, HTTP integration and resilience when communicating with marketplace services.
 
-## Componentes presentes
+## Components
 
-- Endpoints de autenticação e verificação de saúde.
-- Estratégia JWT e guards de autorização, sessão e papéis.
-- Serviço de proxy HTTP com circuit breaker e fallbacks.
-- Rate limiting configurável, validação de DTOs, CORS e Helmet.
-- Middleware de logging e documentação Swagger.
+- Authentication and health-check endpoints.
+- JWT strategy and authorization, session and role guards.
+- HTTP proxy service with a circuit breaker and fallbacks.
+- Configurable rate limiting, DTO validation, CORS and Helmet.
+- Logging middleware and Swagger documentation.
 
-## Executar localmente
+## Run locally
 
 ```bash
 npm ci
-# Crie .env e configure os serviços usados pelo gateway.
+# Create .env and configure the services used by the gateway.
 npm run start:dev
 ```
 
-A porta padrão é 3005; a documentação Swagger fica em /api. Configure USERS_SERVICE_URL, PRODUCTS_SERVICE_URL, CHECKOUT_SERVICE_URL e PAYMENTS_SERVICE_URL conforme src/config/gateway.config.ts. Revise também as opções de CORS, JWT e limites de requisição nos módulos correspondentes.
+The default port is 3005 and Swagger is served at /api. Set USERS_SERVICE_URL, PRODUCTS_SERVICE_URL, CHECKOUT_SERVICE_URL and PAYMENTS_SERVICE_URL as defined in src/config/gateway.config.ts. Also review CORS, JWT and rate-limit settings in their modules.
 
-## Organização
+## Structure
 
-- `src/auth/` e `src/guards/`: autenticação e controle de acesso.
-- `src/proxy/`: comunicação HTTP, circuit breaker e fallbacks.
-- `src/config/`: endereços dos serviços e CORS.
+- `src/auth/` and `src/guards/`: authentication and access control.
+- `src/proxy/`: HTTP communication, circuit breaker and fallbacks.
+- `src/config/`: service addresses and CORS.
 - `src/middleware/`: logging.
 
-## Testes e build
+## Tests and build
 
 ```bash
 npm test
@@ -35,6 +35,6 @@ npm run test:e2e
 npm run build
 ```
 
-## Estado do projeto
+## Project status
 
-A infraestrutura de proxy está presente como serviço; isso não significa que todos os caminhos de produtos, checkout e pagamentos já estejam publicados como rotas HTTP. Os serviços downstream são dependências externas a este repositório. O projeto deve ser avaliado como uma implementação em evolução, sem afirmar uma plataforma completa de microsserviços.
+Proxy infrastructure is implemented as a service. This does not mean every product, checkout and payment path is exposed as an HTTP route. Downstream services are external dependencies. Treat this as an evolving implementation rather than a complete microservices platform.
