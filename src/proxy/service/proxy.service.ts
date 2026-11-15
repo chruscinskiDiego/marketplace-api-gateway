@@ -4,7 +4,9 @@ import type { AxiosRequestConfig, AxiosResponse, Method } from 'axios';
 import { firstValueFrom } from 'rxjs';
 import type { JwtUser } from '../../auth/types/auth.types';
 import { serviceConfig } from '../../config/gateway.config';
-import { CircuitBreakerService } from '../common/circuit-breaker/circuit-breaker.service';
+import { CircuitBreakerService } from '../../common/circuit-breaker/circuit-breaker.service';
+import { CacheFallbackService } from '../../common/fallback/cache.fallback';
+import { DefaultFallbackService } from '../../common/fallback/default.fallback';
 
 export type ServiceHealth =
   | { status: 'healthy'; data: unknown }
@@ -16,8 +18,10 @@ export class ProxyService {
 
   constructor(
     private readonly httpService: HttpService,
-    private readonly circuitBreakerService: CircuitBreakerService
-  ) {}
+    private readonly circuitBreakerService: CircuitBreakerService,
+    private readonly cacheFallbackService: CacheFallbackService,
+    private readonly defaultFallbackService: DefaultFallbackService
+  ) { }
 
   async proxyRequest(
     serviceName: keyof typeof serviceConfig,
@@ -26,13 +30,16 @@ export class ProxyService {
     data?: unknown,
     headers?: AxiosRequestConfig<unknown>['headers'],
     userInfo?: JwtUser,
-  ): Promise<AxiosResponse<unknown, unknown>> {
+  ): Promise<any> {
 
     const service = serviceConfig[serviceName];
     const url = `${service.url}${path}`;
+
     this.logger.log(`Proxying ${method} request to ${serviceName}: ${url}`);
 
-    return this.circuitBreakerService.executeWithCircuitBreaker( 
+    const fallback = this.createServiceFallback(serviceName, method, path);
+
+    return this.circuitBreakerService.executeWithCircuitBreaker(
       async () => {
         const enhancedHeaders = {
           ...headers,
@@ -51,13 +58,18 @@ export class ProxyService {
           }),
         );
 
-        return response;
-      },
-      () => {
-        this.logger.error(`Error proxying method ${method} request to ${serviceName}: ${url}`);
 
-        throw new Error(`Service ${serviceName} is currently unavailable. Please try again later.`);
+        if (method.toLowerCase() === 'get') {
+          this.cacheFallbackService.setCachedData(
+            `${serviceName}-${path}`,
+            response.data
+          )
+        }
+
+        return response.data;
+
       },
+      fallback,
       `proxy-${serviceName}`,
       {
         failureThreshold: 3,
@@ -65,7 +77,7 @@ export class ProxyService {
         resetTimeout: 30000,
       }
     )
-    
+
   }
 
   async getServiceHealth(
@@ -85,5 +97,44 @@ export class ProxyService {
         error: error instanceof Error ? error.message : 'Unknown service error',
       };
     }
+  }
+
+  private createServiceFallback(
+    serviceName: string,
+    method: string,
+    path: string,
+  ) {
+
+    switch (serviceName) {
+
+      case 'users':
+        if (path.includes('/auth/login')) {
+          return this.defaultFallbackService.createErrorFallback('users', 'Authentication service unavailable');
+        }
+        return this.defaultFallbackService.createErrorFallback('users', 'User service unavailable');
+
+      case 'products':
+        if (method.toLowerCase() === 'get') {
+          return this.cacheFallbackService.createCacheFallback(
+            `products-${path}`,
+            { products: [], total: 0, page: 1, limit: 10 }
+          )
+        }
+        return this.defaultFallbackService.createErrorFallback('products', 'Product service unavailable');
+
+      case 'checkout':
+        return this.defaultFallbackService.createErrorFallback( serviceName, `${serviceName} service unavailable`);
+
+      case 'payments':
+         return this.defaultFallbackService.createErrorFallback( serviceName, `${serviceName} service unavailable`);
+
+      default:
+        return this.defaultFallbackService.createErrorFallback(
+          serviceName,
+          'Service unavailable'
+        )
+
+    }
+
   }
 }
