@@ -3,10 +3,18 @@ import { ProxyService } from './service/proxy.service';
 import { HttpModule } from '@nestjs/axios';
 import { CircuitBreakerModule } from '../common/circuit-breaker/circuit-breaker.module';
 import { FallbackModule } from '../common/fallback/fallback.module';
+import { RetryModule } from 'src/common/retry/retry.module';
+import { TimeoutModule } from 'src/common/timeout/timeout.module';
 
 @Module({
-  imports: [HttpModule, CircuitBreakerModule, FallbackModule],
+  imports: [
+    HttpModule,
+    CircuitBreakerModule,
+    FallbackModule,
+    RetryModule,
+    TimeoutModule
+  ],
   providers: [ProxyService],
   exports: [ProxyService],
 })
-export class ProxyModule {}
+export class ProxyModule { }

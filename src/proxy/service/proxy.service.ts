@@ -7,6 +7,8 @@ import { serviceConfig } from '../../config/gateway.config';
 import { CircuitBreakerService } from '../../common/circuit-breaker/circuit-breaker.service';
 import { CacheFallbackService } from '../../common/fallback/cache.fallback';
 import { DefaultFallbackService } from '../../common/fallback/default.fallback';
+import { RetryService } from 'src/common/retry/retry.service';
+import { TimeoutService } from 'src/common/timeout/timeout.service';
 
 export type ServiceHealth =
   | { status: 'healthy'; data: unknown }
@@ -20,7 +22,9 @@ export class ProxyService {
     private readonly httpService: HttpService,
     private readonly circuitBreakerService: CircuitBreakerService,
     private readonly cacheFallbackService: CacheFallbackService,
-    private readonly defaultFallbackService: DefaultFallbackService
+    private readonly defaultFallbackService: DefaultFallbackService,
+    private readonly retryService: RetryService,
+    private readonly timeoutService: TimeoutService,
   ) { }
 
   async proxyRequest(
@@ -39,35 +43,49 @@ export class ProxyService {
 
     const fallback = this.createServiceFallback(serviceName, method, path);
 
+    // Camada 1: Circuit Breaker
     return this.circuitBreakerService.executeWithCircuitBreaker(
       async () => {
-        const enhancedHeaders = {
-          ...headers,
-          'x-user-id': userInfo?.userId,
-          'x-user-email': userInfo?.email,
-          'x-user-role': userInfo?.role,
-        };
+        // Camada 2: Retry
+        return await this.retryService.executeWithExponentialBackoff(
+          async () => {
+            // Camada 3: Timeout
+            return await this.timeoutService.executeWithCustomTimeout(
+              async () => {
+                const enhancedHeaders = {
+                  ...headers,
+                  'x-user-id': userInfo?.userId,
+                  'x-user-email': userInfo?.email,
+                  'x-user-role': userInfo?.role,
+                };
 
-        const response = await firstValueFrom(
-          this.httpService.request<unknown>({
-            method: method.toLowerCase(),
-            url,
-            data,
-            headers: enhancedHeaders,
-            timeout: service.timeout,
-          }),
+                const response = await firstValueFrom(
+                  this.httpService.request<unknown>({
+                    method: method.toLowerCase(),
+                    url,
+                    data,
+                    headers: enhancedHeaders,
+                    timeout: service.timeout,
+                  }),
+                );
+
+
+                if (method.toLowerCase() === 'get') {
+                  this.cacheFallbackService.setCachedData(
+                    `${serviceName}-${path}`,
+                    response.data
+                  )
+                }
+
+                return response.data;
+
+              },
+              service.timeout
+              //operation
+            )
+          },
+          3
         );
-
-
-        if (method.toLowerCase() === 'get') {
-          this.cacheFallbackService.setCachedData(
-            `${serviceName}-${path}`,
-            response.data
-          )
-        }
-
-        return response.data;
-
       },
       fallback,
       `proxy-${serviceName}`,
@@ -123,10 +141,10 @@ export class ProxyService {
         return this.defaultFallbackService.createErrorFallback('products', 'Product service unavailable');
 
       case 'checkout':
-        return this.defaultFallbackService.createErrorFallback( serviceName, `${serviceName} service unavailable`);
+        return this.defaultFallbackService.createErrorFallback(serviceName, `${serviceName} service unavailable`);
 
       case 'payments':
-         return this.defaultFallbackService.createErrorFallback( serviceName, `${serviceName} service unavailable`);
+        return this.defaultFallbackService.createErrorFallback(serviceName, `${serviceName} service unavailable`);
 
       default:
         return this.defaultFallbackService.createErrorFallback(
